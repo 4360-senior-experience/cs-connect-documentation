@@ -1,0 +1,50 @@
+[build]
+  # Directory to publish (VitePress output)
+  publish = ".vitepress/dist"
+  # Build command
+  command = "npm run docs:build"
+
+# Production context: all deploys from the Production branch set in your site's
+# deploy settings will inherit these settings.
+[context.production]
+  # Environment variables specific to production
+  environment = { NODE_VERSION = "18" }
+
+# Deploy Preview context: all deploys generated from a pull/merge request will
+# inherit these settings.
+[context.deploy-preview]
+  # Environment variables specific to deploy previews
+  environment = { NODE_VERSION = "18" }
+
+# Branch Deploy context: all deploys that are not from a pull/merge request or
+# from the Production branch will inherit these settings.
+[context.branch-deploy]
+  # Environment variables specific to branch deploys
+  environment = { NODE_VERSION = "18" }
+
+# Redirects and headers are defined in this section
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Custom headers for the site
+[[headers]]
+  # Define which paths this specific [[headers]] block will cover
+  for = "/*"
+    [headers.values]
+    # Multi-key header
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Build plugins
+[[plugins]]
+  package = "@netlify/plugin-lighthouse"
+  
+  # Optional plugin configuration
+  [plugins.inputs]
+    output_path = "lighthouse-results"
