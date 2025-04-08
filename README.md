@@ -37,7 +37,7 @@ The documentation is built using [VitePress](https://vitepress.dev/), a static s
    npm run docs:dev
    ```
 
-4. Open your browser and visit http://localhost:5173
+4. Open your browser and visit `http://localhost:5173` (or the URL shown in your terminal)
 
 ### Building for Production
 

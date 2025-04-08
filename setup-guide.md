@@ -56,7 +56,7 @@ To start the development server with hot-reload:
 npm run dev
 ```
 
-This will start the Next.js development server with Turbopack. Once started, you can access the application at [http://localhost:3000](http://localhost:3000).
+This will start the Next.js development server with Turbopack. Once started, you can access the application at `http://localhost:3000` (default development URL).
 
 ### Project Structure
 
@@ -98,7 +98,7 @@ To start the production server:
 npm run start
 ```
 
-The production server will be available at [http://localhost:3000](http://localhost:3000) by default.
+The production server will be available at `http://localhost:3000` by default (unless configured otherwise).
 
 ## Environment Configuration
 
