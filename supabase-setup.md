@@ -31,32 +31,69 @@ CS Connect requires several tables for its functionality. You can set these up u
 2. Create the following tables:
 
 ```sql
--- Users profiles table
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id),
+-- Users table
+CREATE TABLE users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_type TEXT CHECK (user_type IN ('student', 'faculty', 'admin')) NOT NULL
+);
+
+-- Careers table
+CREATE TABLE careers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  courses TEXT[] NOT NULL
+);
+
+-- Student Profiles
+CREATE TABLE student_profiles (
+  id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
-  graduation_year INTEGER,
-  career_interest_id INTEGER REFERENCES careers(id),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  career_id UUID REFERENCES careers(id) ON DELETE SET NULL,
+  bio TEXT,
+  profile_pic TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Career options table
-CREATE TABLE careers (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- Modules table
+CREATE TABLE modules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Insert some initial career options
-INSERT INTO careers (name, description) VALUES
-  ('Software Development', 'Design and build applications and systems'),
-  ('Data Science', 'Analyze and interpret complex data'),
-  ('Cybersecurity', 'Protect systems and networks from digital attacks'),
-  ('Machine Learning', 'Create systems that learn and improve from experience'),
-  ('Web Development', 'Build and maintain websites and web applications');
+-- Student Module Progress
+CREATE TABLE student_module_progress (
+  student_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  module_id UUID REFERENCES modules(id) ON DELETE CASCADE,
+  is_completed BOOLEAN DEFAULT FALSE,
+  progress_date TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (student_id, module_id)
+);
+```
+### Triggers and Functions
+
+```sql
+  -- Function to handle new auth.users entries
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, user_type)
+  VALUES (NEW.id, 'student');
+  
+  INSERT INTO public.student_profiles (id, first_name, last_name)
+  VALUES (NEW.id, 'Pending', 'Setup');
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to call the function
+CREATE OR REPLACE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 ```
 
 ## Step 3: Configure Authentication
@@ -84,20 +121,34 @@ To ensure data security, implement Row Level Security policies:
 4. Add the following policies:
 
 ```sql
--- Allow users to read their own profile
-CREATE POLICY "Users can view their own profile"
-ON profiles FOR SELECT
+-- Enable SELECT access to own profile
+CREATE POLICY "Users can read their own profile" 
+ON student_profiles FOR SELECT 
 USING (auth.uid() = id);
 
--- Allow users to update their own profile
-CREATE POLICY "Users can update their own profile"
-ON profiles FOR UPDATE
+-- Allow students to update their own profile
+CREATE POLICY "Allow students to update their own profile"
+ON student_profiles
+FOR UPDATE
 USING (auth.uid() = id);
 
--- Allow users to insert their own profile
-CREATE POLICY "Users can insert their own profile"
-ON profiles FOR INSERT
+-- Allow students to insert their profile
+CREATE POLICY "Allow students to insert their own profile"
+ON student_profiles
+FOR INSERT
 WITH CHECK (auth.uid() = id);
+
+-- Allow authenticated users to upload to profilepictures bucket
+CREATE POLICY "Allow upload for authenticated users"
+ON storage.objects
+FOR INSERT
+WITH CHECK (bucket_id = 'profilepictures' AND auth.role() = 'authenticated');
+
+-- Allow public read access to profilepictures bucket
+CREATE POLICY "Allow public read access"
+ON storage.objects
+FOR SELECT
+USING (bucket_id = 'profilepictures');
 ```
 
 ## Step 5: Get API Keys
@@ -130,27 +181,52 @@ CS Connect includes a test endpoint to verify your Supabase connection:
 
 ## Database Schema Details
 
-### Profiles Table
+### 🧑‍💼 Users Table
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key, references auth.users |
-| first_name | TEXT | User's first name |
-| last_name | TEXT | User's last name |
-| graduation_year | INTEGER | Expected graduation year |
-| career_interest_id | INTEGER | References careers table |
-| created_at | TIMESTAMP | Record creation time |
-| updated_at | TIMESTAMP | Record update time |
+| Column    | Type  | Description                                      |
+|-----------|--------|--------------------------------------------------|
+| id        | UUID   | Primary key, references `auth.users(id)`         |
+| user_type | TEXT   | User role; must be `'student'`, `'faculty'`, or `'admin'` |
 
-### Careers Table
+### 🎓 Careers Table
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | SERIAL | Primary key |
-| name | TEXT | Career name |
-| description | TEXT | Career description |
-| created_at | TIMESTAMP | Record creation time |
+| Column  | Type    | Description              |
+|---------|---------|--------------------------|
+| id      | UUID    | Primary key              |
+| name    | TEXT    | Career name              |
+| courses | TEXT[]  | Related courses (array)  |
 
+### 🧑‍🎓 Student Profiles Table
+
+| Column      | Type      | Description                                      |
+|-------------|-----------|--------------------------------------------------|
+| id          | UUID      | Primary key, references `users(id)`             |
+| first_name  | TEXT      | User's first name                               |
+| last_name   | TEXT      | User's last name                                |
+| career_id   | UUID      | References `careers(id)`                        |
+| bio         | TEXT      | Short biography                                 |
+| profile_pic | TEXT      | URL/path to profile picture                     |
+| created_at  | TIMESTAMP | Record creation timestamp                       |
+| updated_at  | TIMESTAMP | Record last update timestamp                    |
+
+### 📦 Modules Table
+
+| Column     | Type      | Description                      |
+|------------|-----------|----------------------------------|
+| id         | UUID      | Primary key                      |
+| title      | TEXT      | Module title                     |
+| created_at | TIMESTAMP | Record creation timestamp        |
+| updated_at | TIMESTAMP | Record last update timestamp     |
+
+### 📊 Student Module Progress Table
+
+| Column        | Type      | Description                                        |
+|---------------|-----------|----------------------------------------------------|
+| student_id    | UUID      | References `users(id)`                             |
+| module_id     | UUID      | References `modules(id)`                           |
+| is_completed  | BOOLEAN   | Whether the student completed the module           |
+| progress_date | TIMESTAMP | Timestamp of progress update                       |
+| PRIMARY KEY   | (student_id, module_id) | Composite key for uniqueness   
 ## Advanced Configuration
 
 ### Email Templates
