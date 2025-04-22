@@ -40,8 +40,7 @@ CREATE TABLE users (
 -- Careers table
 CREATE TABLE careers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  courses TEXT[] NOT NULL
+  name TEXT NOT NULL
 );
 
 -- Student Profiles
@@ -56,21 +55,14 @@ CREATE TABLE student_profiles (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Modules table
-CREATE TABLE modules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
 -- Student Module Progress
 CREATE TABLE student_module_progress (
   student_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  module_id UUID REFERENCES modules(id) ON DELETE CASCADE,
+  module_slug TEXT NOT NULL,
   is_completed BOOLEAN DEFAULT FALSE,
-  progress_date TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (student_id, module_id)
+  started_at TIMESTAMP DEFAULT NOW(),
+  completed_at TIMESTAMP,
+  PRIMARY KEY (student_id, module_slug)
 );
 ```
 ### Triggers and Functions
@@ -94,6 +86,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
 AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
 ```
 
 ## Step 3: Configure Authentication
@@ -138,11 +132,10 @@ ON student_profiles
 FOR INSERT
 WITH CHECK (auth.uid() = id);
 
--- Allow authenticated users to upload to profilepictures bucket
-CREATE POLICY "Allow upload for authenticated users"
-ON storage.objects
-FOR INSERT
-WITH CHECK (bucket_id = 'profilepictures' AND auth.role() = 'authenticated');
+-- Module progress for students
+CREATE POLICY "Students can manage their own module progress"
+ON student_module_progress
+FOR ALL USING (auth.uid() = student_id);
 
 -- Allow public read access to profilepictures bucket
 CREATE POLICY "Allow public read access"
@@ -194,7 +187,6 @@ CS Connect includes a test endpoint to verify your Supabase connection:
 |---------|---------|--------------------------|
 | id      | UUID    | Primary key              |
 | name    | TEXT    | Career name              |
-| courses | TEXT[]  | Related courses (array)  |
 
 ### 🧑‍🎓 Student Profiles Table
 
@@ -209,24 +201,17 @@ CS Connect includes a test endpoint to verify your Supabase connection:
 | created_at  | TIMESTAMP | Record creation timestamp                       |
 | updated_at  | TIMESTAMP | Record last update timestamp                    |
 
-### 📦 Modules Table
-
-| Column     | Type      | Description                      |
-|------------|-----------|----------------------------------|
-| id         | UUID      | Primary key                      |
-| title      | TEXT      | Module title                     |
-| created_at | TIMESTAMP | Record creation timestamp        |
-| updated_at | TIMESTAMP | Record last update timestamp     |
 
 ### 📊 Student Module Progress Table
 
 | Column        | Type      | Description                                        |
 |---------------|-----------|----------------------------------------------------|
 | student_id    | UUID      | References `users(id)`                             |
-| module_id     | UUID      | References `modules(id)`                           |
+| module_slug     | UUID      | References `modules(id)`                         |
 | is_completed  | BOOLEAN   | Whether the student completed the module           |
-| progress_date | TIMESTAMP | Timestamp of progress update                       |
-| PRIMARY KEY   | (student_id, module_id) | Composite key for uniqueness   
+| started_at    | TIMESTAMP | Timestamp of when student started the module       |
+| completed_at  | TIMESTAMP | Timestamp of when a student completed module
+| PRIMARY KEY   | (student_id, module_slug) | Composite key for uniqueness   
 ## Advanced Configuration
 
 ### Email Templates
