@@ -105,6 +105,11 @@ CS Connect uses Supabase's built-in authentication system:
    - GitHub
    - Microsoft
 
+4. Under **Attack Protection**, you can setup security to protect from attacks:
+   - Enable Captcha Protection: ON
+   - Choose Captcha Provider: (Here we used hCaptcha)
+   - Captcha Secret: (You obtain this key from the Captcha provider)
+
 ## Step 4: Set Up Row Level Security (RLS)
 
 To ensure data security, implement Row Level Security policies:
@@ -234,6 +239,73 @@ For advanced functionality, you can set up webhooks:
    - New user signup
    - Profile updates
    - Other database changes
+
+## hCaptcha
+
+Supabase provides you with the option of adding CAPTCHA to your sign-in, sign-up, and password reset forms. This keeps your website safe from bots and malicious scripts.
+
+Before starting make sure you have an hCaptcha account and have copied the Secret key and Sitekey
+
+1. Go to the hCaptcha website and sign up for an account. On the Welcome page, copy the Sitekey and Secret key. If you have already signed up and didn't copy this information from the Welcome page, you can get the Secret key from the Settings page and the sitkey from the Settings of the active site you have created.
+2. Navigate to the Auth section of your Project Settings in the Supabase Dashboard and find the Enable CAPTCHA protection toggle under Settings > Authentication > Bot and Abuse Protection > Enable CAPTCHA protection. Select your CAPTCHA provider from the dropdown, enter your CAPTCHA Secret key, and click Save
+
+Install @hcaptcha/react-hcaptcha in your project as a dependency.
+
+```bash
+npm install @hcaptcha/react-hcaptcha
+```
+
+Now import the HCaptcha component from the @hcaptcha/react-hcaptcha library.
+
+```javascript
+import HCaptcha from '@hcaptcha/react-hcaptcha'
+```
+
+Let's create a empty state to store our captchaToken
+
+```javascript
+const [captchaToken, setCaptchaToken] = useState()
+```
+
+Now lets add the HCaptcha component to the JSX section of our code
+
+```javascript
+<HCaptcha />
+``` 
+
+We will pass it the sitekey we copied from the hCaptcha website as a property along with a onVerify property which takes a callback function. This callback function will have a token as one of its properties. Let's set the token in the state using setCaptchaToken
+
+```javascript
+<HCaptcha  sitekey="your-sitekey"  onVerify={(token) => {    setCaptchaToken(token)  }}/>
+```
+
+Now lets use the CAPTCHA token we receive in our Supabase signUp function.
+
+```javascript
+await supabase.auth.signUp({  email,  password,  options: { captchaToken },})
+```
+
+We will also need to reset the CAPTCHA challenge after we have made a call to the function above.
+
+Create a ref to use on our HCaptcha component.
+
+```javascript
+const captcha = useRef()
+```
+
+Let's add a ref attribute on the HCaptcha component and assign the captcha constant to it.
+
+```javascript
+<HCaptcha  ref={captcha}  sitekey="your-sitekey"  onVerify={(token) => {    setCaptchaToken(token)  }}/>
+```
+
+Reset the captcha after the signUp function is called using the following code:
+
+```javascript
+captcha.current.resetCaptcha()
+```
+
+Run the application and you should now be provided with a CAPTCHA challenge.
 
 ## Troubleshooting
 
